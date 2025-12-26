@@ -1,0 +1,13 @@
+# Central settings for Stock Forecast Pipeline
+tickers: ["AAPL", "GOOGL", "MSFT"]
+look_back: 60
+train_test_split: 0.8
+
+data:
+  raw_dir: "data/raw"
+  processed_dir: "data/processed"
+  forecast_dir: "data/forecasts"
+
+models:
+  production_path: "models/lstm_production.h5"
+  registry_dir: "models"

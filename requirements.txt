@@ -5,3 +5,7 @@ scikit-learn
 tensorflow
 pandas-ta
 python-dotenv
+streamlit
+plotly
+matplotlib
+seaborn

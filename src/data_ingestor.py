@@ -1,60 +1,76 @@
 # src/data_ingestor.py
-import pandas as pd
+import sys
+import pathlib
+
+PROJECT_ROOT = pathlib.Path(__file__).resolve().parents[1]
+if str(PROJECT_ROOT) not in sys.path:
+    sys.path.insert(0, str(PROJECT_ROOT))
 import yfinance as yf
-from datetime import datetime, timedelta
+import pandas as pd
 import os
+from datetime import datetime
+from config import settings
+import logging
+
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
 
 class DataIngestor:
-    def __init__(self, ticker, config):
+    def __init__(self, ticker=settings.TICKER):
         self.ticker = ticker
-        self.data_dir = config['data_dirs']['raw']
-        self.file_path = f"{self.data_dir}/{ticker}_raw.csv"
+        self.file_path = os.path.join(settings.DATA_RAW_DIR, f"{ticker}_raw.csv")
 
-    def fetch_and_validate(self):
-        """Fetches new data since last update, appends, and validates."""
-        
-        # 1. Determine the start date for new data (last date in file + 1)
-        if os.path.exists(self.file_path):
-            existing_data = pd.read_csv(self.file_path, index_col='Date', parse_dates=True)
-            last_date = existing_data.index.max()
-            start_date = last_date + timedelta(days=1)
-        else:
-            existing_data = None
-            start_date = datetime(2020, 1, 1)  # Initial start date from config
-
-        # 2. Only fetch new data if needed
-        if start_date.date() < datetime.now().date():
-            self.logger.info(f"Fetching new data from {start_date.date()}")
-            new_data = yf.download(self.ticker, start=start_date, end=datetime.now())
-            
-            if not new_data.empty:
-                # 3. Append to existing data
-                if existing_data is not None:
-                    updated_data = pd.concat([existing_data, new_data])
-                else:
-                    updated_data = new_data
-                
-                # 4. Basic validation (no missing dates, negative volumes)
-                updated_data = self._validate_data(updated_data)
-                
-                # 5. Save updated dataset
-                updated_data.to_csv(self.file_path)
-                self.logger.info(f"Data saved to {self.file_path}")
+    def fetch_and_save(self):
+        """Fetches new data and appends to existing CSV."""
+        try:
+            # Determine the start date for new data
+            if os.path.exists(self.file_path):
+                existing_df = pd.read_csv(self.file_path, index_col='Date', parse_dates=True)
+                # Keep only main columns, drop any duplicates
+                main_cols = ['Close', 'High', 'Low', 'Open', 'Volume']
+                existing_df = existing_df[[col for col in main_cols if col in existing_df.columns]]
+                last_date = existing_df.index.max()
+                start_date = last_date + pd.Timedelta(days=1)
+                logger.info(f"Found existing data until {last_date.date()}")
             else:
-                self.logger.info("No new data available.")
-        
-        return self.file_path
+                existing_df = None
+                start_date = settings.START_DATE
+                logger.info("No existing data found. Starting fresh.")
 
-    def _validate_data(self, df):
-        """Performs data quality checks."""
-        # Check for missing dates
-        all_dates = pd.date_range(start=df.index.min(), end=df.index.max(), freq='B')
-        missing_dates = all_dates.difference(df.index)
-        if len(missing_dates) > 0:
-            self.logger.warning(f"{len(missing_dates)} trading dates missing.")
-        
-        # Check for absurd values
-        if (df['Volume'] < 0).any():
-            raise ValueError("Negative volume found.")
-        
-        return df
+            # If start_date is in the past, fetch new data
+            if pd.to_datetime(start_date) < datetime.now():
+                logger.info(f"Fetching data from {start_date}")
+                new_data = yf.download(self.ticker, start=start_date, progress=False)
+
+                if not new_data.empty:
+                    # Flatten multi-index columns if present (yfinance sometimes returns multi-index)
+                    if isinstance(new_data.columns, pd.MultiIndex):
+                        new_data.columns = new_data.columns.get_level_values(0)
+                    
+                    # Keep only main columns
+                    main_cols = ['Close', 'High', 'Low', 'Open', 'Volume']
+                    new_data = new_data[[col for col in main_cols if col in new_data.columns]]
+                    
+                    # Append new data to existing or create new file
+                    if existing_df is not None:
+                        updated_df = pd.concat([existing_df, new_data])
+                        updated_df = updated_df[~updated_df.index.duplicated(keep='last')]  # Remove duplicates
+                    else:
+                        updated_df = new_data
+
+                    updated_df.to_csv(self.file_path)
+                    logger.info(f"Data saved to {self.file_path}. New rows: {len(new_data)}")
+                else:
+                    logger.info("No new data available from Yahoo Finance.")
+            else:
+                logger.info("Data is already up to date.")
+
+            return self.file_path
+
+        except Exception as e:
+            logger.error(f"Error in data ingestion: {e}")
+            raise
+
+if __name__ == "__main__":
+    ingestor = DataIngestor()
+    ingestor.fetch_and_save()

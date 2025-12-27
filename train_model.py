@@ -1,6 +1,6 @@
 #!/usr/bin/env python3
 """
-train_paper_model.py
+train_model.py
 
 End-to-end training script for the research paper-based LSTM model.
 Uses univariate approach (price-only) with Stacked LSTM architecture.
@@ -23,8 +23,8 @@ from datetime import datetime
 import logging
 
 from src.data_ingestor import DataIngestor
-from src.feature_engineer_univariate import FeatureEngineerUnivariate
-from src.model_trainer_paper import ModelTrainerPaper
+from src.feature_engineer import FeatureEngineerUnivariate
+from src.model_trainer import ModelTrainerPaper
 from config import settings
 
 logging.basicConfig(
@@ -139,7 +139,7 @@ def main():
     # Step 3: Model Training
     logger.info("\n[STEP 3/4] Training LSTM model...")
     model_name = f"lstm_paper_{settings.TICKER}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-    trainer = ModelTrainerPaper(model_name=model_name)
+    trainer = ModelTrainerPaper(model_name=model_name, ticker=settings.TICKER)
     
     model, history = trainer.train(
         X_train_final, y_train_final,
@@ -153,6 +153,10 @@ def main():
     metrics, y_test_actual, y_pred_actual = trainer.evaluate(
         model, X_test, y_test, scaler
     )
+    
+    # Save model metadata
+    training_date = datetime.now().isoformat()
+    trainer.save_metadata(metrics, training_date=training_date)
     
     # Save results visualization
     results_plot_path = os.path.join(

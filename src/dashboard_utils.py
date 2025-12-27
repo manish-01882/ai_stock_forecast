@@ -249,22 +249,97 @@ def calculate_metrics(actual, predicted):
     }
 
 
+def get_model_for_ticker(ticker):
+    """Get the most recent trained model for a specific ticker.
+    
+    Args:
+        ticker: Stock symbol (e.g., 'AAPL', 'GOOGL')
+        
+    Returns:
+        dict: Model info with path and metadata, or None if not found
+    """
+    models_dir = settings.MODELS_DIR
+    if not os.path.exists(models_dir):
+        return None
+    
+    # Find all metadata JSON files for this ticker
+    pattern = f"lstm_paper_{ticker}_"
+    metadata_files = [
+        f for f in os.listdir(models_dir) 
+        if f.startswith(pattern) and f.endswith('.json')
+    ]
+    
+    if not metadata_files:
+        return None
+    
+    # Get the most recent metadata file (sorted by filename/timestamp)
+    metadata_files.sort(reverse=True)
+    metadata_path = os.path.join(models_dir, metadata_files[0])
+    
+    # Load metadata
+    try:
+        import json
+        with open(metadata_path, 'r') as f:
+            metadata = json.load(f)
+        
+        model_path = metadata.get('model_path')
+        
+        # Verify model file exists
+        if not os.path.exists(model_path):
+            logger.warning(f"Model file not found: {model_path}")
+            return None
+        
+        return {
+            'path': model_path,
+            'metadata': metadata
+        }
+    except Exception as e:
+        logger.error(f"Error loading metadata for {ticker}: {e}")
+        return None
+
+
 def get_available_models():
-    """Get list of available trained models."""
+    """Get list of available trained models (legacy function for backward compatibility)."""
     models_dir = settings.MODELS_DIR
     if not os.path.exists(models_dir):
         return []
     
     model_files = [f for f in os.listdir(models_dir) if f.endswith('.h5')]
-    return sorted(model_files, reverse=True)  # Most recent first
+    return sorted(model_files, reverse=True)
 
 
 def get_model_info(model_path):
-    """Extract information from model filename."""
+    """Extract information from model (tries JSON metadata first, falls back to filename).
+    
+    Args:
+        model_path: Path to model file
+        
+    Returns:
+        dict: Model information
+    """
     filename = os.path.basename(model_path)
     name = filename.replace('.h5', '')
     
-    # Try to extract date from filename
+    # Try to load metadata from JSON
+    json_path = model_path.replace('.h5', '.json')
+    if os.path.exists(json_path):
+        try:
+            import json
+            with open(json_path, 'r') as f:
+                metadata = json.load(f)
+            
+            return {
+                'name': name,
+                'ticker': metadata.get('ticker', 'Unknown'),
+                'date': metadata.get('training_date', 'Unknown')[:10],  # Just the date part
+                'path': model_path,
+                'metrics': metadata.get('metrics', {}),
+                'metadata': metadata
+            }
+        except Exception as e:
+            logger.warning(f"Could not load metadata from {json_path}: {e}")
+    
+    # Fallback: Try to extract from filename
     try:
         if '_' in name:
             parts = name.split('_')
@@ -281,6 +356,10 @@ def get_model_info(model_path):
     
     return {
         'name': name,
+        'ticker': 'Unknown',
         'date': model_date,
-        'path': model_path
+        'path': model_path,
+        'metrics': {},
+        'metadata': None
     }
+

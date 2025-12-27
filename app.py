@@ -6,10 +6,11 @@ from plotly.subplots import make_subplots
 import os
 from datetime import datetime, timedelta
 from config import settings
+from src.data_ingestor import DataIngestor
 from src.dashboard_utils import (
     load_trained_model, load_stock_data, add_technical_indicators,
     make_predictions, predict_future, calculate_metrics,
-    get_available_models, get_model_info
+    get_available_models, get_model_info, get_model_for_ticker
 )
 
 # Page configuration
@@ -60,30 +61,51 @@ with st.sidebar:
     # Stock selection
     st.subheader("Stock Selection")
     ticker = st.text_input("Enter Stock Ticker", value=settings.TICKER, help="e.g., AAPL, GOOGL, MSFT")
+    ticker = ticker.upper().strip()  # Normalize ticker input
     
-    # Model selection
-    st.subheader("Model Selection")
-    available_models = get_available_models()
+    # Automatic model selection based on ticker
+    st.subheader("Model Info")
+    model_info = get_model_for_ticker(ticker)
     
-    if available_models:
-        model_options = {f"{get_model_info(os.path.join(settings.MODELS_DIR, m))['name']} ({get_model_info(os.path.join(settings.MODELS_DIR, m))['date']})": m 
-                        for m in available_models}
-        selected_model_display = st.selectbox("Choose Model", list(model_options.keys()))
-        selected_model = model_options[selected_model_display]
-        model_path = os.path.join(settings.MODELS_DIR, selected_model)
+    if model_info:
+        metadata = model_info['metadata']
+        model_path = model_info['path']
+        
+        # Display model information
+        st.success(f"✅ Model loaded for **{ticker}**")
+        st.caption(f"📅 Trained: {metadata.get('training_date', 'Unknown')[:10]}")
+        
+        # Show metrics in an expander
+        with st.expander("📊 View Model Metrics"):
+            metrics = metadata.get('metrics', {})
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("RMSE", f"${metrics.get('rmse', 0):.2f}")
+                st.metric("MAE", f"${metrics.get('mae', 0):.2f}")
+            with col2:
+                st.metric("MAPE", f"{metrics.get('mape', 0):.2f}%")
+                st.metric("Lookback", f"{metadata.get('lookback_window', settings.LOOKBACK_WINDOW)} days")
     else:
-        st.warning("⚠️ No trained models found!")
-        st.info("Run `python main.py` to train a model first.")
+        st.warning(f"⚠️ No trained model found for **{ticker}**")
+        st.info(f"""
+        **To train a model for {ticker}:**
+        1. Add `{ticker}` to `config/config.yaml` (tickers list)
+        2. Run: `python train_batch.py`
+        
+        Or train just this ticker:
+        ```bash
+        # Update config/settings.py: TICKER = "{ticker}"
+        python train_model.py
+        ```
+        """)
         model_path = None
     
     # Prediction settings
     st.subheader("Prediction Settings")
     # Use fixed lookback from training configuration (cannot be changed)
     lookback = settings.LOOKBACK_WINDOW
-    st.info(f"📊 **Lookback Window:** {lookback} days (fixed from training)")
-    st.caption("The lookback window must match the training configuration and cannot be adjusted.")
-    
-    future_days = st.slider("Future Prediction Days", min_value=7, max_value=90, value=30, step=7,
+    st.info(f"📊 **Lookback Window:** {lookback} days")    
+    future_days = st.slider("Future Prediction Days", min_value=7, max_value=90, value=7, step=7,
                            help="Number of days to predict into the future")
     
     # Date range filter
@@ -96,6 +118,16 @@ with st.sidebar:
     
     # Refresh button
     if st.button("🔄 Refresh Data", use_container_width=True):
+        with st.spinner(f"📡 Fetching latest data for {ticker}..."):
+            try:
+                # Fetch latest data from Yahoo Finance
+                ingestor = DataIngestor(ticker=ticker)
+                ingestor.fetch_and_save()
+                st.success(f"✅ Latest data fetched for {ticker}")
+            except Exception as e:
+                st.error(f"⚠️ Error fetching data: {str(e)}")
+        
+        # Clear cache and rerun
         st.cache_data.clear()
         st.rerun()
     

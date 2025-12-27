@@ -14,21 +14,48 @@ Ensure you have all dependencies installed:
 pip install -r requirements.txt
 ```
 
-### Running the Dashboard
+## Quick Start
 
-1. **First, ensure you have trained a model:**
-   ```bash
-   python main.py
-   ```
-   This will fetch stock data and train an LSTM model.
+### 1. Train Models
+```bash
+# Train all tickers at once (AAPL, GOOGL, MSFT)
+python train_batch.py
 
-2. **Launch the dashboard:**
-   ```bash
-   streamlit run app.py
-   ```
+# Or train a single ticker
+python train_model.py
+```
 
-3. **Open your browser:**
-   The dashboard will automatically open at `http://localhost:8501`
+### 2. Run Dashboard
+```bash
+streamlit run app.py
+```
+
+### 3. Access
+Open browser to `http://localhost:8501`
+
+---
+
+## Project Structure
+
+```
+stock_forecast/
+├── app.py                    # Streamlit dashboard
+├── train_batch.py           # Batch training for multiple tickers
+├── train_model.py           # Single ticker training
+├── requirements.txt
+├── config/
+│   ├── config.yaml         # Multi-ticker configuration
+│   └── settings.py         # Global settings
+├── src/
+│   ├── data_ingestor.py
+│   ├── feature_engineer.py
+│   ├── model_trainer.py
+│   └── dashboard_utils.py
+├── data/
+│   └── raw/                # Stock CSV files
+├── models/                 # Trained models & metadata
+└── logs/
+```
 
 ## 🎯 Dashboard Features
 

@@ -8,7 +8,7 @@ if str(PROJECT_ROOT) not in sys.path:
 import pandas as pd
 import numpy as np
 import pandas_ta as ta  # Technical analysis library
-from sklearn.preprocessing import RobustScaler
+from sklearn.preprocessing import MinMaxScaler
 import os
 from config import settings
 import logging
@@ -19,64 +19,44 @@ logger = logging.getLogger(__name__)
 class FeatureEngineer:
     def __init__(self, lookback=settings.LOOKBACK_WINDOW):
         self.lookback = lookback
-        # RobustScaler is better for financial data as it handles outliers
-        self.scaler = RobustScaler()
+        # MinMaxScaler works better for LSTM price predictions
+        self.scaler = MinMaxScaler(feature_range=(0, 1))
 
     def add_technical_indicators(self, df):
-        """Adds comprehensive technical indicators to the dataframe using pandas_ta."""
+        """Adds carefully selected technical indicators to avoid overfitting."""
         logger.info("Adding technical indicators...")
         
-        # Moving Averages
-        df.ta.sma(length=20, append=True)   # Simple Moving Average 20
-        df.ta.sma(length=50, append=True)   # Simple Moving Average 50
-        df.ta.ema(length=12, append=True)   # Exponential Moving Average 12
-        df.ta.ema(length=26, append=True)   # Exponential Moving Average 26
+        # Core Moving Averages (most important trend indicators)
+        df.ta.sma(length=20, append=True)   # Short-term MA
+        df.ta.sma(length=50, append=True)   # Long-term MA
+        df.ta.ema(length=12, append=True)   # Fast EMA for MACD
         
-        # Momentum Indicators
-        df.ta.rsi(length=14, append=True)   # Relative Strength Index
-        df.ta.macd(append=True)             # MACD
-        df.ta.stoch(append=True)            # Stochastic Oscillator
-        df.ta.adx(length=14, append=True)   # Average Directional Index (trend strength)
+        # Key Momentum Indicators
+        df.ta.rsi(length=14, append=True)   # RSI - very important
+        df.ta.macd(append=True)             # MACD - trend + momentum
         
         # Volatility Indicators
         df.ta.bbands(length=20, append=True) # Bollinger Bands
         df.ta.atr(length=14, append=True)    # Average True Range
         
-        # Volume Indicators
+        # Volume Indicator (only the most useful one)
         df.ta.obv(append=True)               # On-Balance Volume
-        df.ta.ad(append=True)                # Accumulation/Distribution
         
-        # Price-based features
+        # Simple price-based features (avoid over-engineering)
         df['Returns'] = df['Close'].pct_change()
-        df['Log_Returns'] = np.log(df['Close'] / df['Close'].shift(1))
-        
-        # Volatility features
-        df['Volatility_5'] = df['Returns'].rolling(window=5).std()
         df['Volatility_20'] = df['Returns'].rolling(window=20).std()
         
-        # Price momentum features
-        df['Price_Change_5d'] = df['Close'].pct_change(periods=5)
-        df['Price_Change_20d'] = df['Close'].pct_change(periods=20)
-        
-        # Volume momentum
-        df['Volume_Change'] = df['Volume'].pct_change()
+        # Volume ratio (simple but effective)
         df['Volume_MA_20'] = df['Volume'].rolling(window=20).mean()
         df['Volume_Ratio'] = df['Volume'] / df['Volume_MA_20']
         
-        # High-Low spread (intraday volatility)
-        df['HL_Spread'] = (df['High'] - df['Low']) / df['Close']
-        
-        # Distance from moving averages
-        df['Close_to_SMA20'] = (df['Close'] - df['SMA_20']) / df['SMA_20']
-        df['Close_to_SMA50'] = (df['Close'] - df['SMA_50']) / df['SMA_50']
-        
-        # Drop rows with NaN values (from indicator calculations)
+        # Drop rows with NaN values
         initial_rows = len(df)
         df = df.dropna()
         dropped_rows = initial_rows - len(df)
         
         logger.info(f"Data shape after adding indicators: {df.shape}")
-        logger.info(f"Dropped {dropped_rows} rows due to NaN values from indicator calculations")
+        logger.info(f"Dropped {dropped_rows} rows due to NaN values")
         logger.info(f"Total features: {len(df.columns)}")
         
         return df

@@ -127,69 +127,33 @@ def add_technical_indicators(df):
 
 
 def prepare_data_for_prediction(df, lookback=100):
-    """Prepare data for model prediction with comprehensive technical indicators."""
-    # Add technical indicators (matching training pipeline)
+    """Prepare data for model prediction using UNIVARIATE approach (Close price only).
+    
+    This MUST match the training pipeline which uses only Close price without
+    technical indicators, as per the research paper recommendations.
+    """
     df_processed = df.copy()
     
-    # Moving Averages
-    df_processed.ta.sma(length=20, append=True)
-    df_processed.ta.sma(length=50, append=True)
-    df_processed.ta.ema(length=12, append=True)
-    df_processed.ta.ema(length=26, append=True)
+    # Extract only Close price (univariate approach)
+    price_data = df_processed[['Close']].copy()
     
-    # Momentum Indicators
-    df_processed.ta.rsi(length=14, append=True)
-    df_processed.ta.macd(append=True)
-    df_processed.ta.stoch(append=True)
-    df_processed.ta.adx(length=14, append=True)
+    # Drop any NaN values
+    price_data = price_data.dropna()
     
-    # Volatility Indicators
-    df_processed.ta.bbands(length=20, append=True)
-    df_processed.ta.atr(length=14, append=True)
-    
-    # Volume Indicators
-    df_processed.ta.obv(append=True)
-    df_processed.ta.ad(append=True)
-    
-    # Price-based features
-    df_processed['Returns'] = df_processed['Close'].pct_change()
-    df_processed['Log_Returns'] = np.log(df_processed['Close'] / df_processed['Close'].shift(1))
-    
-    # Volatility features
-    df_processed['Volatility_5'] = df_processed['Returns'].rolling(window=5).std()
-    df_processed['Volatility_20'] = df_processed['Returns'].rolling(window=20).std()
-    
-    # Price momentum features
-    df_processed['Price_Change_5d'] = df_processed['Close'].pct_change(periods=5)
-    df_processed['Price_Change_20d'] = df_processed['Close'].pct_change(periods=20)
-    
-    # Volume momentum
-    df_processed['Volume_Change'] = df_processed['Volume'].pct_change()
-    df_processed['Volume_MA_20'] = df_processed['Volume'].rolling(window=20).mean()
-    df_processed['Volume_Ratio'] = df_processed['Volume'] / df_processed['Volume_MA_20']
-    
-    # High-Low spread
-    df_processed['HL_Spread'] = (df_processed['High'] - df_processed['Low']) / df_processed['Close']
-    
-    # Distance from moving averages
-    df_processed['Close_to_SMA20'] = (df_processed['Close'] - df_processed['SMA_20']) / df_processed['SMA_20']
-    df_processed['Close_to_SMA50'] = (df_processed['Close'] - df_processed['SMA_50']) / df_processed['SMA_50']
-    
-    df_processed = df_processed.dropna()
-    
-    # Scale the data using RobustScaler
-    from sklearn.preprocessing import RobustScaler
-    scaler = RobustScaler()
-    scaled_data = scaler.fit_transform(df_processed)
+    # Scale the data using MinMaxScaler
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(price_data)
     
     # Create sequences
     X = []
     for i in range(lookback, len(scaled_data)):
+        # Shape: (lookback, 1) for each sample
         X.append(scaled_data[i-lookback:i, :])
     
     X = np.array(X)
     
-    return X, scaler, df_processed
+    return X, scaler, price_data
 
 
 def make_predictions(model, df, lookback=100):
@@ -197,7 +161,7 @@ def make_predictions(model, df, lookback=100):
     if model is None or df is None or len(df) < lookback:
         return None, None, None
     
-    X, scaler, df_processed = prepare_data_for_prediction(df, lookback)
+    X, scaler, price_data = prepare_data_for_prediction(df, lookback)
     
     if len(X) == 0:
         return None, None, None
@@ -206,77 +170,37 @@ def make_predictions(model, df, lookback=100):
     predictions_scaled = model.predict(X)
     
     # Inverse transform predictions
-    dummy_array = np.zeros((len(predictions_scaled), scaler.n_features_in_))
-    dummy_array[:, 0] = predictions_scaled.flatten()
+    dummy_array = predictions_scaled.reshape(-1, 1)
     predictions = scaler.inverse_transform(dummy_array)[:, 0]
     
     # Get actual values for comparison
-    actual_values = df_processed['Close'].values[lookback:]
+    actual_values = price_data['Close'].values[lookback:]
     
     # Create dates for predictions
-    prediction_dates = df_processed.index[lookback:]
+    prediction_dates = price_data.index[lookback:]
     
     return predictions, actual_values, prediction_dates
 
 
 def predict_future(model, df, days_ahead=30, lookback=100):
-    """Predict future stock prices."""
+    """Predict future stock prices using UNIVARIATE approach (Close price only).
+    
+    This MUST match the training pipeline which uses only Close price without
+    technical indicators, as per the research paper recommendations.
+    """
     if model is None or df is None:
         return None, None
     
-    # Prepare the most recent data with all technical indicators
     df_processed = df.copy()
     
-    # Moving Averages
-    df_processed.ta.sma(length=20, append=True)
-    df_processed.ta.sma(length=50, append=True)
-    df_processed.ta.ema(length=12, append=True)
-    df_processed.ta.ema(length=26, append=True)
-    
-    # Momentum Indicators
-    df_processed.ta.rsi(length=14, append=True)
-    df_processed.ta.macd(append=True)
-    df_processed.ta.stoch(append=True)
-    df_processed.ta.adx(length=14, append=True)
-    
-    # Volatility Indicators
-    df_processed.ta.bbands(length=20, append=True)
-    df_processed.ta.atr(length=14, append=True)
-    
-    # Volume Indicators
-    df_processed.ta.obv(append=True)
-    df_processed.ta.ad(append=True)
-    
-    # Price-based features
-    df_processed['Returns'] = df_processed['Close'].pct_change()
-    df_processed['Log_Returns'] = np.log(df_processed['Close'] / df_processed['Close'].shift(1))
-    
-    # Volatility features
-    df_processed['Volatility_5'] = df_processed['Returns'].rolling(window=5).std()
-    df_processed['Volatility_20'] = df_processed['Returns'].rolling(window=20).std()
-    
-    # Price momentum features
-    df_processed['Price_Change_5d'] = df_processed['Close'].pct_change(periods=5)
-    df_processed['Price_Change_20d'] = df_processed['Close'].pct_change(periods=20)
-    
-    # Volume momentum
-    df_processed['Volume_Change'] = df_processed['Volume'].pct_change()
-    df_processed['Volume_MA_20'] = df_processed['Volume'].rolling(window=20).mean()
-    df_processed['Volume_Ratio'] = df_processed['Volume'] / df_processed['Volume_MA_20']
-    
-    # High-Low spread
-    df_processed['HL_Spread'] = (df_processed['High'] - df_processed['Low']) / df_processed['Close']
-    
-    # Distance from moving averages
-    df_processed['Close_to_SMA20'] = (df_processed['Close'] - df_processed['SMA_20']) / df_processed['SMA_20']
-    df_processed['Close_to_SMA50'] = (df_processed['Close'] - df_processed['SMA_50']) / df_processed['SMA_50']
-    
-    df_processed = df_processed.dropna()
+    # Extract only Close price (univariate approach)
+    price_data = df_processed[['Close']].copy()
+    price_data = price_data.dropna()
     
     # Scale
-    from sklearn.preprocessing import RobustScaler
-    scaler = RobustScaler()
-    scaled_data = scaler.fit_transform(df_processed)
+    from sklearn.preprocessing import MinMaxScaler
+    scaler = MinMaxScaler(feature_range=(0, 1))
+    scaled_data = scaler.fit_transform(price_data)
     
     # Get the last lookback window
     last_sequence = scaled_data[-lookback:]
@@ -285,33 +209,25 @@ def predict_future(model, df, days_ahead=30, lookback=100):
     current_sequence = last_sequence.copy()
     
     for _ in range(days_ahead):
-        # Reshape for prediction
-        current_input = current_sequence.reshape(1, lookback, -1)
+        # Reshape for prediction: (1, lookback, 1)
+        current_input = current_sequence.reshape(1, lookback, 1)
         
         # Predict next value
         next_pred = model.predict(current_input, verbose=0)
         
-        # Create full feature vector for the prediction
-        next_features = np.zeros((1, scaler.n_features_in_))
-        next_features[0, 0] = next_pred[0, 0]
-        
-        # For simplicity, use the last known values for other features
-        # In a more sophisticated approach, you'd predict or estimate these too
-        next_features[0, 1:] = current_sequence[-1, 1:]
-        
         # Append to predictions
         future_predictions.append(next_pred[0, 0])
         
-        # Update sequence
-        current_sequence = np.vstack([current_sequence[1:], next_features])
+        # Update sequence by removing oldest and adding newest prediction
+        # Shape remains (lookback, 1)
+        current_sequence = np.vstack([current_sequence[1:], [[next_pred[0, 0]]]])
     
     # Inverse transform predictions
-    dummy_array = np.zeros((len(future_predictions), scaler.n_features_in_))
-    dummy_array[:, 0] = future_predictions
+    dummy_array = np.array(future_predictions).reshape(-1, 1)
     future_prices = scaler.inverse_transform(dummy_array)[:, 0]
     
     # Generate future dates
-    last_date = df_processed.index[-1]
+    last_date = price_data.index[-1]
     future_dates = pd.date_range(start=last_date + timedelta(days=1), periods=days_ahead, freq='B')
     
     return future_prices, future_dates

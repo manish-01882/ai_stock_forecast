@@ -78,8 +78,11 @@ with st.sidebar:
     
     # Prediction settings
     st.subheader("Prediction Settings")
-    lookback = st.slider("Lookback Window", min_value=30, max_value=150, value=100, step=10,
-                        help="Number of past days to consider for prediction")
+    # Use fixed lookback from training configuration (cannot be changed)
+    lookback = settings.LOOKBACK_WINDOW
+    st.info(f"📊 **Lookback Window:** {lookback} days (fixed from training)")
+    st.caption("The lookback window must match the training configuration and cannot be adjusted.")
+    
     future_days = st.slider("Future Prediction Days", min_value=7, max_value=90, value=30, step=7,
                            help="Number of days to predict into the future")
     
@@ -457,7 +460,7 @@ if model_path and os.path.exists(model_path):
         
         # Additional info
         with st.expander("ℹ️ About This Dashboard"):
-            st.markdown("""
+            st.markdown(f"""
             ### Stock Forecast Dashboard
             
             This dashboard uses a **Long Short-Term Memory (LSTM)** neural network to predict stock prices.
@@ -465,14 +468,15 @@ if model_path and os.path.exists(model_path):
             **Features:**
             - **Live stock data** fetched from Yahoo Finance API
             - Real-time price updates (cached for 5 minutes)
-            - Technical indicators (RSI, MACD, Bollinger Bands, Moving Averages)
+            - Technical indicators visualization (RSI, MACD, Bollinger Bands, Moving Averages)
             - Historical prediction accuracy metrics
             - Future price forecasting
             
             **Model Details:**
-            - Architecture: LSTM with dropout layers
-            - Input: Historical prices + technical indicators
-            - Lookback window: Configurable (default 100 days)
+            - Architecture: Stacked LSTM (4 layers, 96 units each) with dropout
+            - Approach: **Univariate** (Close price only, no technical indicators)
+            - Lookback window: **{lookback} days** (fixed from training)
+            - Based on research findings showing univariate models outperform multivariate
             
             **Data Source:**
             - Live prices from Yahoo Finance

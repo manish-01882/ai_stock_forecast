@@ -26,31 +26,24 @@ class ModelTrainer:
         self.best_model_path = os.path.join(settings.MODELS_DIR, f"{self.model_name}_best.h5")
 
     def build_model(self, input_shape):
-        """Builds an improved LSTM model architecture with Bidirectional layers."""
+        """Builds a balanced LSTM model - complex enough to learn, simple enough to generalize."""
         model = Sequential([
-            # First Bidirectional LSTM layer
-            Bidirectional(LSTM(units=128, return_sequences=True, 
+            # First Bidirectional LSTM layer (reduced from 128 to 96)
+            Bidirectional(LSTM(units=96, return_sequences=True, 
                               kernel_regularizer=l2(0.001)), 
                          input_shape=input_shape),
             BatchNormalization(),
-            Dropout(0.3),
+            Dropout(0.4),  # Increased dropout to prevent overfitting
             
-            # Second Bidirectional LSTM layer
-            Bidirectional(LSTM(units=64, return_sequences=True,
+            # Second Bidirectional LSTM layer (reduced from 64 to 48)
+            Bidirectional(LSTM(units=48, return_sequences=False,
                               kernel_regularizer=l2(0.001))),
             BatchNormalization(),
-            Dropout(0.3),
+            Dropout(0.4),
             
-            # Third LSTM layer
-            LSTM(units=32, return_sequences=False,
-                 kernel_regularizer=l2(0.001)),
-            BatchNormalization(),
+            # Dense layers (simplified)
+            Dense(units=24, activation='relu', kernel_regularizer=l2(0.001)),
             Dropout(0.3),
-            
-            # Dense layers
-            Dense(units=32, activation='relu', kernel_regularizer=l2(0.001)),
-            Dropout(0.2),
-            Dense(units=16, activation='relu'),
             Dense(units=1)  # Output layer for price prediction
         ])
         
@@ -60,7 +53,7 @@ class ModelTrainer:
             metrics=['mean_absolute_error']
         )
         
-        logger.info("Enhanced LSTM model built successfully.")
+        logger.info("Balanced LSTM model built successfully.")
         logger.info(f"Total parameters: {model.count_params():,}")
         return model
 

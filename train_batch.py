@@ -19,7 +19,7 @@ from tabulate import tabulate
 
 from src.data_ingestor import DataIngestor
 from src.feature_engineer import FeatureEngineerUnivariate
-from src.model_trainer import ModelTrainerPaper
+from src.model_trainer import ModelTrainer
 from config import settings
 
 logging.basicConfig(
@@ -70,7 +70,7 @@ def train_model_for_ticker(ticker):
         # Step 3: Model Training
         logger.info(f"\n[3/4] Training LSTM model...")
         model_name = f"lstm_paper_{ticker}_{datetime.now().strftime('%Y%m%d_%H%M')}"
-        trainer = ModelTrainerPaper(model_name=model_name, ticker=ticker)
+        trainer = ModelTrainer(model_name=model_name, ticker=ticker)
         
         model, history = trainer.train(
             X_train_final, y_train_final,

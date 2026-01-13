@@ -19,9 +19,9 @@ import logging
 logging.basicConfig(level=logging.INFO)
 logger = logging.getLogger(__name__)
 
-class ModelTrainerPaper:
+class ModelTrainer:
     """
-    LSTM Model Trainer based on Research Paper Architecture.
+    LSTM Model Trainer Architecture.
     
     Architecture from Paper 1:
     - 4 Stacked LSTM layers (96 units each)
@@ -31,7 +31,12 @@ class ModelTrainerPaper:
     - 50-100 epochs training
     """
     def __init__(self, model_name=None, ticker=None):
-        self.model_name = model_name or f"lstm_paper_{datetime.now().strftime('%Y%m%d_%H%M')}"
+        # Generate model name with ticker if not provided
+        if model_name is None:
+            ticker_str = f"{ticker}_" if ticker else ""
+            model_name = f"lstm_paper_{ticker_str}{datetime.now().strftime('%Y%m%d_%H%M')}"
+        
+        self.model_name = model_name
         self.ticker = ticker  # Store ticker for metadata
         self.model_path = os.path.join(settings.MODELS_DIR, f"{self.model_name}.h5")
         self.best_model_path = os.path.join(settings.MODELS_DIR, f"{self.model_name}_best.h5")
@@ -78,14 +83,14 @@ class ModelTrainerPaper:
             Dense(units=1)
         ])
         
-        # Compile with Adam optimizer and MSE loss (as per papers)
+        # Compile with Adam optimizer and MSE loss
         model.compile(
             optimizer='adam',
             loss='mean_squared_error',
             metrics=['mean_absolute_error']
         )
         
-        logger.info("✓ Stacked LSTM model built (Paper 1 architecture)")
+        logger.info("✓ Stacked LSTM model built")
         logger.info(f"  Total parameters: {model.count_params():,}")
         logger.info(f"  Architecture: 4 LSTM layers (96 units each) + Dropout (0.2)")
         
@@ -129,26 +134,76 @@ class ModelTrainerPaper:
                 )
             ])
         else:
-            logger.info("  Early stopping: DISABLED (training full epochs as per papers)")
+            logger.info("  Early stopping: DISABLED (training full epochs)")
         
         return callbacks
 
-    def train(self, X_train, y_train, X_val=None, y_val=None, epochs=None, batch_size=None):
+    def train(self, X_train=None, y_train=None, X_val=None, y_val=None, epochs=None, batch_size=None):
         """Trains the LSTM model.
         
+        If X_train and y_train are not provided, loads and prepares data from files.
+        Automatically evaluates and saves metadata after training.
+        
         Args:
-            X_train: Training sequences
-            y_train: Training targets
+            X_train: Training sequences (optional - will auto-load if not provided)
+            y_train: Training targets (optional - will auto-load if not provided)
             X_val: Validation sequences (optional)
             y_val: Validation targets (optional)
             epochs: Number of epochs (default from settings)
             batch_size: Batch size (default from settings)
             
         Returns:
-            model, history
+            tuple: (model, history, metrics, scaler) - metrics and scaler for evaluation
         """
+        from src.data_ingestor import DataIngestor
+        from src.feature_engineer import FeatureEngineerUnivariate
+        
         epochs = epochs or settings.EPOCHS
         batch_size = batch_size or settings.BATCH_SIZE
+        
+        scaler = None
+        X_test = None
+        y_test = None
+        
+        # If data not provided, load and prepare it
+        if X_train is None or y_train is None:
+            logger.info(f"Loading and preparing data for ticker: {self.ticker}")
+            
+            # Fetch data - ensure it's saved properly
+            try:
+                ingestor = DataIngestor(ticker=self.ticker)
+                ingestor.fetch_and_save()
+                logger.info(f"✓ Data fetched for {self.ticker}")
+            except Exception as e:
+                logger.error(f"Failed to fetch data for {self.ticker}: {e}")
+                raise
+            
+            # Prepare sequences using feature engineer
+            try:
+                raw_file = os.path.join(settings.DATA_RAW_DIR, f"{self.ticker}_raw.csv")
+                
+                # Verify the file exists after fetch
+                if not os.path.exists(raw_file):
+                    # Check what files are in the directory
+                    if os.path.exists(settings.DATA_RAW_DIR):
+                        files_in_dir = os.listdir(settings.DATA_RAW_DIR)
+                        logger.error(f"Expected file not found. Files in {settings.DATA_RAW_DIR}: {files_in_dir}")
+                    raise FileNotFoundError(f"Raw data file not found: {raw_file}")
+                
+                # Use feature engineer to process raw data
+                feature_engineer = FeatureEngineerUnivariate()
+                X_train, X_test, y_train, y_test, scaler = feature_engineer.process(raw_file)
+                
+                # Use test data as validation
+                X_val = X_test
+                y_val = y_test
+                
+                logger.info(f"✓ Data loaded and prepared successfully")
+                logger.info(f"  Train shape: {X_train.shape}, Test shape: {X_test.shape}")
+                
+            except Exception as e:
+                logger.error(f"Error loading data: {e}")
+                raise
         
         logger.info(f"Training model on data shape: {X_train.shape}")
         logger.info(f"Validation data shape: {X_val.shape if X_val is not None else 'None'}")
@@ -181,7 +236,18 @@ class ModelTrainerPaper:
             model = load_model(self.best_model_path)
             logger.info("✓ Loaded best model from training")
         
-        return model, history
+        # Evaluate if we have test data
+        metrics = None
+        if X_test is not None and y_test is not None and scaler is not None:
+            logger.info("Evaluating model on test data...")
+            metrics, _, _ = self.evaluate(model, X_test, y_test, scaler)
+            
+            # Save metadata
+            training_date = datetime.now().isoformat()
+            self.save_metadata(metrics, training_date=training_date)
+            logger.info(f"✓ Metadata saved for {self.ticker}")
+        
+        return model, history, metrics, scaler
 
     def evaluate(self, model, X_test, y_test, scaler):
         """Evaluates model performance and returns metrics.
@@ -262,7 +328,7 @@ if __name__ == "__main__":
     from config import settings
     
     logger.info("Testing model architecture...")
-    trainer = ModelTrainerPaper()
+    trainer = ModelTrainer()
     
     # Build model with univariate input shape (50 timesteps, 1 feature)
     model = trainer.build_model((settings.LOOKBACK_WINDOW, 1))

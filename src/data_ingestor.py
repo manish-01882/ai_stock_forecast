@@ -23,6 +23,9 @@ class DataIngestor:
     def fetch_and_save(self):
         """Fetches new data and appends to existing CSV."""
         try:
+            # Ensure data directory exists
+            os.makedirs(settings.DATA_RAW_DIR, exist_ok=True)
+            
             # Determine the start date for new data
             if os.path.exists(self.file_path):
                 existing_df = pd.read_csv(self.file_path, index_col='Date', parse_dates=True)
@@ -39,36 +42,43 @@ class DataIngestor:
 
             # If start_date is in the past, fetch new data
             if pd.to_datetime(start_date) < datetime.now():
-                logger.info(f"Fetching data from {start_date}")
+                logger.info(f"Fetching data from {start_date} for ticker {self.ticker}")
                 new_data = yf.download(self.ticker, start=start_date, progress=False)
 
-                if not new_data.empty:
-                    # Flatten multi-index columns if present (yfinance sometimes returns multi-index)
-                    if isinstance(new_data.columns, pd.MultiIndex):
-                        new_data.columns = new_data.columns.get_level_values(0)
-                    
-                    # Keep only main columns
-                    main_cols = ['Close', 'High', 'Low', 'Open', 'Volume']
-                    new_data = new_data[[col for col in main_cols if col in new_data.columns]]
-                    
-                    # Append new data to existing or create new file
-                    if existing_df is not None:
-                        updated_df = pd.concat([existing_df, new_data])
-                        updated_df = updated_df[~updated_df.index.duplicated(keep='last')]  # Remove duplicates
+                if new_data is None or new_data.empty:
+                    logger.warning(f"No data returned from yfinance for {self.ticker}. Check ticker validity.")
+                    if existing_df is not None and not existing_df.empty:
+                        logger.info("Using existing data instead.")
+                        return self.file_path
                     else:
-                        updated_df = new_data
+                        raise ValueError(f"Failed to fetch data for ticker {self.ticker}. Please verify the ticker symbol is valid.")
 
-                    updated_df.to_csv(self.file_path)
-                    logger.info(f"Data saved to {self.file_path}. New rows: {len(new_data)}")
+                # Flatten multi-index columns if present (yfinance sometimes returns multi-index)
+                if isinstance(new_data.columns, pd.MultiIndex):
+                    new_data.columns = new_data.columns.get_level_values(0)
+                
+                # Keep only main columns
+                main_cols = ['Close', 'High', 'Low', 'Open', 'Volume']
+                new_data = new_data[[col for col in main_cols if col in new_data.columns]]
+                
+                # Append new data to existing or create new file
+                if existing_df is not None:
+                    updated_df = pd.concat([existing_df, new_data])
+                    updated_df = updated_df[~updated_df.index.duplicated(keep='last')]  # Remove duplicates
                 else:
-                    logger.info("No new data available from Yahoo Finance.")
+                    updated_df = new_data
+
+                # Ensure directory exists before saving
+                os.makedirs(os.path.dirname(self.file_path), exist_ok=True)
+                updated_df.to_csv(self.file_path)
+                logger.info(f"✓ Data saved to {self.file_path}. Total rows: {len(updated_df)}, New rows: {len(new_data)}")
             else:
                 logger.info("Data is already up to date.")
 
             return self.file_path
 
         except Exception as e:
-            logger.error(f"Error in data ingestion: {e}")
+            logger.error(f"Error in data ingestion for {self.ticker}: {e}")
             raise
 
 if __name__ == "__main__":

@@ -1,0 +1,63 @@
+version: '3.8'
+
+services:
+  # FastAPI Backend Service
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile.api
+    container_name: stock-forecast-api
+    ports:
+      - "8000:8000"
+    volumes:
+      # Share models, data, and config across services
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+    restart: unless-stopped
+    healthcheck:
+      test: [ "CMD", "python", "-c", "import requests; requests.get('http://localhost:8000/health')" ]
+      interval: 30s
+      timeout: 10s
+      retries: 3
+      start_period: 40s
+    networks:
+      - stock-forecast-network
+
+  # Streamlit Dashboard Service
+  dashboard:
+    build:
+      context: .
+      dockerfile: dockerfile
+    container_name: stock-forecast-dashboard
+    ports:
+      - "8501:8501"
+    volumes:
+      # Share same volumes as API
+      - ./models:/app/models
+      - ./data:/app/data
+      - ./config:/app/config
+      - ./logs:/app/logs
+    environment:
+      - PYTHONUNBUFFERED=1
+      - PYTHONPATH=/app
+      # Dashboard can optionally call API
+      - API_URL=http://api:8000
+    depends_on:
+      - api
+    restart: unless-stopped
+    networks:
+      - stock-forecast-network
+
+networks:
+  stock-forecast-network:
+    driver: bridge
+
+volumes:
+  models:
+  data:
+  logs:

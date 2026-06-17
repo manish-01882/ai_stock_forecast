@@ -1,33 +1,29 @@
-# 📈 Stock Forecast - ML System
+# 📈 AI Stock Forecast — LSTM Price Prediction System
 
-AI-powered stock price prediction system with **LSTM neural networks**, production-ready **REST API**, and interactive **dashboard**.
+AI-powered stock price prediction system with stacked LSTM neural networks, a production-style REST API, and an interactive dashboard — built to go past a single training script and look like something that could actually be deployed.
 
-![Python](https://img.shields.io/badge/python-3.13-blue)
-![FastAPI](https://img.shields.io/badge/FastAPI-0.127.0-green)
-![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15+-orange)
-![Docker](https://img.shields.io/badge/Docker-ready-blue)
+[![Python](https://img.shields.io/badge/python-3.13-blue)](https://www.python.org/)
+[![FastAPI](https://img.shields.io/badge/FastAPI-0.127.0-green)](https://fastapi.tiangolo.com/)
+[![TensorFlow](https://img.shields.io/badge/TensorFlow-2.15+-orange)](https://www.tensorflow.org/)
+[![Docker](https://img.shields.io/badge/Docker-ready-blue)](https://www.docker.com/)
 
----
+## Features
 
-## ✨ Features
+- **LSTM neural networks** — stacked 4-layer architecture trained on historical price data
+- **Production REST API** — FastAPI with automatic OpenAPI docs
+- **Interactive dashboard** — Streamlit web interface for exploring predictions
+- **Docker support** — one-command deployment via Docker Compose
+- **Multi-stock training** — batch training across multiple tickers
+- **Performance tracking** — RMSE, MAE, MAPE logged per model
+- **Fast inference** — model caching keeps predictions under 500ms
+- **Background training** — training jobs run async via the API
 
-- 🤖 **LSTM Neural Networks** - Stacked 4-layer architecture trained on historical price data
-- 🚀 **Production REST API** - FastAPI with automatic OpenAPI docs
-- 📊 **Interactive Dashboard** - Streamlit web interface
-- 🐳 **Docker Support** - One-command deployment with Docker Compose  
-- 📈 **Multi-Stock Training** - Batch training for multiple tickers
-- 📉 **Performance Metrics** - RMSE, MAE, MAPE tracking
-- ⚡ **Model Caching** - Fast predictions (<500ms)
-- 🔄 **Background Training** - Async model training jobs
-
----
-
-## 🏗️ Architecture
+## Architecture
 
 ```
 ┌─────────────────────────────────────────────────────────┐
 │                   Client Applications                    │
-│  (Browser, Mobile App, Trading Bot, Python Script)      │
+│  (Browser, Mobile App, Trading Bot, Python Script)        │
 └──────────────┬──────────────────────┬───────────────────┘
                │                      │
         ┌──────▼──────┐        ┌─────▼──────┐
@@ -46,48 +42,36 @@ AI-powered stock price prediction system with **LSTM neural networks**, producti
                └─────────────────────┘
 ```
 
----
+## Quick start
 
-## 🚀 Quick Start
-
-### Option 1: Docker Compose (Recommended)
+### Option 1: Docker Compose (recommended)
 
 ```bash
-# Clone the repository
-git clone <your-repo-url>
-cd stock_forecast
-
-# Start both API and Dashboard
+git clone https://github.com/manish-01882/ai_stock_forecast.git
+cd ai_stock_forecast
 docker-compose up -d
-
-# Access the services
-# Dashboard: http://localhost:8501
-# API:       http://localhost:8000
-# API Docs:  http://localhost:8000/docs
 ```
 
-### Option 2: Manual Setup
+Then visit the dashboard at `http://localhost:8501` and the API docs at `http://localhost:8000/docs`.
+
+### Option 2: Manual setup
 
 ```bash
-# Create virtual environment
 python -m venv .venv
-source .venv/bin/activate  # On Windows: .venv\Scripts\activate
+source .venv/bin/activate  # Windows: .venv\Scripts\activate
 
-# Install dependencies
 pip install -r requirements.txt
 
-# Run the API (Terminal 1)
+# Terminal 1
 uvicorn api.main:app --reload
 
-# Run the Dashboard (Terminal 2)
+# Terminal 2
 streamlit run app.py
 ```
 
----
+## API usage
 
-## 📡 API Usage
-
-### Get Predictions
+**Get predictions:**
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/predict" \
@@ -95,27 +79,13 @@ curl -X POST "http://localhost:8000/api/v1/predict" \
   -d '{"ticker": "AAPL", "days": 7}'
 ```
 
-Response:
-```json
-{
-  "ticker": "AAPL",
-  "current_price": 150.25,
-  "predictions": [
-    {"date": "2026-01-15", "price": 151.30},
-    {"date": "2026-01-16", "price": 152.10}
-  ],
-  "model_metrics": {"rmse": 2.15, "mape": 1.8},
-  "confidence_score": 0.89
-}
-```
-
-### List Available Models
+**List available models:**
 
 ```bash
 curl http://localhost:8000/api/v1/models
 ```
 
-### Train New Model
+**Train a new model:**
 
 ```bash
 curl -X POST "http://localhost:8000/api/v1/train" \
@@ -123,25 +93,32 @@ curl -X POST "http://localhost:8000/api/v1/train" \
   -d '{"ticker": "TSLA", "epochs": 100}'
 ```
 
-**Full API Documentation:** http://localhost:8000/docs
+| Method | Endpoint | Description |
+|---|---|---|
+| GET | `/health` | Health check |
+| GET | `/` | API landing page |
+| POST | `/api/v1/predict` | Generate predictions |
+| GET | `/api/v1/models` | List all models |
+| GET | `/api/v1/models/{ticker}` | Get model info |
+| POST | `/api/v1/train` | Start a training job |
+| GET | `/api/v1/train/{job_id}` | Check training job status |
 
----
+## Model architecture
 
-## 🎓 Training Models
+Stacked LSTM, 4 layers (96 units each) with 0.2 dropout between layers, ending in a single dense output unit. Trained with Adam and MSE loss, early stopping (patience=10), and checkpointing on best weights.
 
-### Train Single Stock
+## Training
 
 ```bash
+# Single stock
 python train_model.py
-```
 
-### Batch Train Multiple Stocks
-
-```bash
+# Batch across multiple tickers
 python train_batch.py
 ```
 
-Results:
+Sample batch output:
+
 ```
 ┌─────────┬─────────┬─────────┬────────┬──────────┐
 │ Ticker  │ Status  │  RMSE   │  MAE   │   MAPE   │
@@ -152,45 +129,37 @@ Results:
 └─────────┴─────────┴─────────┴────────┴──────────┘
 ```
 
----
-
-## 📁 Project Structure
+## Project structure
 
 ```
-stock_forecast/
+ai_stock_forecast/
 ├── api/                    # FastAPI REST API
-│   ├── __init__.py
-│   ├── main.py            # API application
-│   ├── models.py          # Pydantic schemas
-│   └── utils.py           # Helper functions
-├── src/                   # Core ML modules
-│   ├── data_ingestor.py   # Yahoo Finance data fetching
-│   ├── feature_engineer.py # Data preprocessing
-│   └── model_trainer.py   # LSTM training
-├── config/                # Configuration
-│   ├── config.yaml        # Training parameters
-│   └── settings.py        # Python settings
-├── models/                # Trained model files
-├── data/                  # Dataset storage
-│   └── raw/              # Raw CSV files
-├── docs/                  # Documentation
-│   ├── API.md            # API reference
-│   └── api_examples.sh   # Example commands
-├── tests/                 # Test suite
-│   └── test_api.py       # API tests
-├── app.py                 # Streamlit dashboard
-├── train_batch.py         # Batch training script
-├── Dockerfile.api         # API container
-├── dockerfile             # Dashboard container
-├── docker-compose.yml     # Multi-service orchestration
-└── requirements.txt       # Python dependencies
+│   ├── main.py
+│   ├── models.py           # Pydantic schemas
+│   └── utils.py
+├── src/                    # Core ML modules
+│   ├── data_ingestor.py    # Yahoo Finance data fetching
+│   ├── feature_engineer.py # Preprocessing
+│   └── model_trainer.py    # LSTM training
+├── config/
+│   ├── config.yaml
+│   └── settings.py
+├── models/                 # Trained model artifacts
+├── data/raw/                # Raw CSV data
+├── docs/
+│   ├── API.md
+│   └── api_examples.sh
+├── tests/
+│   └── test_api.py
+├── app.py                  # Streamlit dashboard
+├── train_batch.py
+├── docker-compose.yml
+└── requirements.txt
 ```
 
----
+## Configuration
 
-## 🔧 Configuration
-
-Edit `config/config.yaml`:
+Edit `config/config.yaml` for the basics:
 
 ```yaml
 tickers: ["AAPL", "GOOGL", "MSFT", "TSLA"]
@@ -202,199 +171,31 @@ models:
   registry_dir: "models"
 ```
 
-Edit `config/settings.py` for advanced options:
-- Epochs, batch size
-- LSTM architecture
-- Data sources
-- Logging levels
+`config/settings.py` covers epochs, batch size, architecture tweaks, data sources, and logging.
 
----
-
-## 🧪 Testing
+## Testing
 
 ```bash
-# Install test dependencies
 pip install pytest httpx
-
-# Run all tests
 pytest tests/ -v
-
-# Run specific test
-pytest tests/test_api.py::test_health_endpoint -v
-
-# Run with coverage
-pytest tests/ --cov=api --cov-report=html
+pytest tests/test_api.py::test_health_endpoint -v   # single test
+pytest tests/ --cov=api --cov-report=html             # with coverage
 ```
 
----
+## Roadmap
 
-## 📊 Model Architecture
+- [ ] Additional model architectures (GRU, Transformer)
+- [ ] Model ensembling
+- [ ] News sentiment as an auxiliary feature
+- [ ] Backtesting framework
+- [ ] CI/CD pipeline
 
-**Stacked LSTM Network:**
-- **Layer 1:** LSTM (96 units, return_sequences=True)
-- **Dropout:** 0.2
-- **Layer 2:** LSTM (96 units, return_sequences=True)
-- **Dropout:** 0.2
-- **Layer 3:** LSTM (96 units, return_sequences=True)
-- **Dropout:** 0.2
-- **Layer 4:** LSTM (96 units)
-- **Dropout:** 0.2
-- **Output:** Dense (1 unit)
+## License
 
-**Training:**
-- Optimizer: Adam
-- Loss: MSE
-- Early stopping with patience=10
-- ModelCheckpoint for best weights
+MIT — see `LICENSE` for details.
 
----
+## Author
 
-## 📈 API Endpoints
+**Manish Choudhary**
 
-| Method | Endpoint | Description |
-|--------|----------|-------------|
-| GET | `/health` | Health check |
-| GET | `/` | API landing page |
-| **Predictions** |
-| POST | `/api/v1/predict` | Generate predictions |
-| **Models** |
-| GET | `/api/v1/models` | List all models |
-| GET | `/api/v1/models/{ticker}` | Get model info |
-| **Training** |
-| POST | `/api/v1/train` | Start training job |
-| GET | `/api/v1/train/{job_id}` | Check training status |
-
----
-
-## 🐳 Docker Commands
-
-```bash
-# Build images
-docker-compose build
-
-# Start services
-docker-compose up -d
-
-# View logs
-docker-compose logs -f api
-docker-compose logs -f dashboard
-
-# Stop services
-docker-compose down
-
-# Rebuild and restart
-docker-compose up -d --build
-
-# Remove everything
-docker-compose down -v
-```
-
----
-
-## 🎯 Integration Examples
-
-### Python
-
-```python
-import requests
-
-response = requests.post(
-    "http://localhost:8000/api/v1/predict",
-    json={"ticker": "AAPL", "days": 7}
-)
-predictions = response.json()
-```
-
-### JavaScript
-
-```javascript
-fetch('http://localhost:8000/api/v1/predict', {
-  method: 'POST',
-  headers: {'Content-Type': 'application/json'},
-  body: JSON.stringify({ticker: 'AAPL', days: 7})
-})
-.then(r => r.json())
-.then(data => console.log(data));
-```
-
-### cURL
-
-```bash
-# Run all examples
-./docs/api_examples.sh
-```
-
----
-
-## 🔒 Production Deployment
-
-1. **Environment Variables:** Create `.env` file
-2. **Authentication:** Add API key middleware
-3. **Rate Limiting:** Implement request throttling
-4. **HTTPS:** Use reverse proxy (nginx)
-5. **Monitoring:** Add Prometheus/Grafana
-6. **Scaling:** Deploy multiple Uvicorn workers
-
-```bash
-# Production command
-uvicorn api.main:app --host 0.0.0.0 --port 8000 --workers 4
-```
-
----
-
-## 📝 TODO / Roadmap
-
-- [ ] Add more ML models (GRU, Transformer)
-- [ ] Implement model ensemble
-- [ ] Add sentiment analysis from news
-- [ ] Create mobile app
-- [ ] Add backtesting framework
-- [ ] Implement CI/CD pipeline
-- [ ] Add Grafana dashboards
-- [ ] Support cryptocurrency predictions
-
----
-
-## 🤝 Contributing
-
-1. Fork the repository
-2. Create feature branch (`git checkout -b feature/amazing-feature`)
-3. Commit changes (`git commit -m 'Add amazing feature'`)
-4. Push to branch (`git push origin feature/amazing-feature`)
-5. Open Pull Request
-
----
-
-## 📄 License
-
-This project is licensed under the MIT License - see LICENSE file for details.
-
----
-
-## 👨‍💻 Author
-
-**Manish** - Stock Forecast ML System
-
-- GitHub: [@your-github]
-- LinkedIn: [your-linkedin]
-- Portfolio: [your-portfolio]
-
----
-
-## 🙏 Acknowledgments
-
-- Research papers for LSTM architecture
-- Yahoo Finance for market data
-- FastAPI and Streamlit communities
-
----
-
-## 📞 Support
-
-- **Documentation:** [docs/API.md](docs/API.md)
-- **Issues:** GitHub Issues
-- **Email:** your-email@example.com
-
----
-
-**⭐ Star this repository if you found it helpful!**
+[LinkedIn](https://www.linkedin.com/in/manish-choudhary-547b092b7/) · [man01882@outlook.com](mailto:man01882@outlook.com)
